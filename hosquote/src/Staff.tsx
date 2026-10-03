@@ -6,6 +6,7 @@ import { exportQuotePdf } from './exportQuote';
 import { listVersions, saveVersion, downloadVersionPdf, type QuoteVersion } from './quoteVersions';
 import { loadSyncKey, createSyncKey, listCloudVersions, saveCloudVersion, getCloudPdf } from './cloudVersions';
 import { normalizeNumbering } from './staffNumbering';
+import { inboxFingerprint,listCustomerQuotes,downloadCustomerPdf,type CustomerSubmission,type LegacyPdf } from './customerInbox';
 import './staff.css';
 
 const KEY = 'ls-hosquote-staff-v1';
@@ -14,7 +15,11 @@ const units=['項','個','套','件','組','幅','樘','盞','點','直尺','橫
 const num = (s: string) => Math.max(0, Number(s) || 0);
 const blank: CustomerInfo = { name:'',phone:'',email:'',estate:'',block:'',floor:'',unit:'',area:'',packageId:'',furnitureLocations:'',kitchenDemolition:'',bathroomDemolition:'' };
 type Draft = { quoteId: string; customer: CustomerInfo; catalog: CatalogItem[]; categories: CatalogCategory[]; selections: Record<string,ItemSelection>; packageName: string; packagePrice: number; notes: string };
-const fresh = (): Draft => ({ quoteId:crypto.randomUUID(), customer:{...blank}, catalog:structuredClone(defaultCatalog), categories:structuredClone(defaultCategories), selections:{},packageName:'另行報價',packagePrice:0,notes:'' });
+const miscCategory: CatalogCategory = {id:'x-misc',code:'自選 05',name:'額外自選｜其他及雜項',scope:'extra'};
+function withMisc(draft: Draft): Draft {
+  return draft.categories.some(c=>c.id===miscCategory.id || (c.scope==='extra' && c.name.includes('其他及雜項'))) ? draft : {...draft,categories:[...draft.categories,{...miscCategory}]};
+}
+const fresh = (): Draft => ({ quoteId:crypto.randomUUID(), customer:{...blank}, catalog:structuredClone(defaultCatalog), categories:structuredClone([...defaultCategories,miscCategory]), selections:{},packageName:'另行報價',packagePrice:0,notes:'' });
 function load(): Draft {
   try { const d=JSON.parse(localStorage.getItem(KEY)||'null'); if(d && Array.isArray(d.catalog)&&Array.isArray(d.categories)&&d.customer&&d.selections) return {...fresh(),...d}; } catch { /* use clean draft */ }
   return fresh();
@@ -22,11 +27,19 @@ function load(): Draft {
 export default function Staff() {
   const customerNameRef=useRef<HTMLInputElement>(null);
   const localPreview=['127.0.0.1','localhost','[::1]'].includes(window.location.hostname);
-  const [draft,setRawDraft]=useState<Draft>(()=>normalizeNumbering(load()));
+  const [draft,setRawDraft]=useState<Draft>(()=>normalizeNumbering(withMisc(load())));
   const setDraft=(action:SetStateAction<Draft>)=>setRawDraft(old=>normalizeNumbering(typeof action==='function'?action(old):action));
   const [syncKey,setSyncKey]=useState(loadSyncKey);
   const [showSyncLink,setShowSyncLink]=useState(false);
   const [versions,setVersions]=useState<QuoteVersion<Draft>[]>([]);
+  const [inboxOpen,setInboxOpen]=useState(false);
+  const [inbox,setInbox]=useState<CustomerSubmission<Draft>[]>([]);
+  const [legacyPdfs,setLegacyPdfs]=useState<LegacyPdf[]>([]);
+  const [inboxSearch,setInboxSearch]=useState('');
+  const [inboxError,setInboxError]=useState('');
+  const [fingerprint,setFingerprint]=useState('');
+  useEffect(()=>{setInbox([]);setLegacyPdfs([]);setFingerprint('');if(syncKey)inboxFingerprint(syncKey).then(setFingerprint);},[syncKey]);
+  async function refreshInbox(legacy=false){setBusy(true);setInboxError('');try{if(!syncKey)throw Error('請先開啟公司的私人同步連結。');if(legacy)setLegacyPdfs(await listCustomerQuotes<LegacyPdf>(syncKey,true));else setInbox((await listCustomerQuotes<CustomerSubmission<Draft>>(syncKey)).sort((a,b)=>b.savedAt.localeCompare(a.savedAt)));}catch(e){setInboxError(e instanceof Error?e.message:'讀取失敗');}finally{setBusy(false);}}
   const [historySearch,setHistorySearch]=useState('');
   const [historyOpen,setHistoryOpen]=useState(false);
   useEffect(()=>{let active=true;const request=syncKey?listCloudVersions<Draft>(syncKey):listVersions<Draft>();request.then(v=>{if(active)setVersions(v);}).catch(e=>{if(active)setStatus(e.message);});return()=>{active=false;};},[syncKey]);
@@ -43,7 +56,7 @@ export default function Staff() {
   const matches=(l:typeof lines[number])=>!search.trim() || [l.item.code,l.item.name,l.item.description].join(' ').toLowerCase().includes(search.trim().toLowerCase());
   const visibleCategories=draft.categories.filter(c=>(categoryFilter==='all'||categoryFilter===c.id)&&(!search.trim()||lines.some(l=>l.item.categoryId===c.id&&matches(l))));
   const extras=lines.reduce((s,l)=>s+l.amount,0);
-  const update=(id:string,p:Partial<CatalogItem>)=>setDraft(d=>({...d,catalog:d.catalog.map(i=>i.id===id?{...i,...p}:i)}));
+  const update=(id:string,p:Partial<CatalogItem>)=>setDraft(d=>({...d,catalog:d.catalog.map(i=>i.id===id?{...i,...p,...(p.categoryId&&p.categoryId!==i.categoryId?{code:'NEW'}:{})}:i)}));
   const select=(item:CatalogItem,p:Partial<ItemSelection>)=>setDraft(d=>({...d,selections:{...d.selections,[item.id]:{...(d.selections[item.id] ?? {selected:item.pricingMode==='included',qty:item.defaultQty,unitPrice:item.price}),...p}}}));
   function applyPackage(id:string) {
     const option=packageOptions.find(p=>p.id===id);
@@ -73,22 +86,26 @@ export default function Staff() {
   }
   function restoreVersion(record:QuoteVersion<Draft>) {
     if(!confirm(`載入 ${record.customerName} V${record.version}？現時未匯出的改動會被取代，請先匯出草稿備份。`)) return;
-    setDraft(structuredClone(record.draft));setSearch('');setCategoryFilter('all');setStatus(`已載入 ${record.customerName} V${record.version}，下次匯出會另存新版本。`);
+    setDraft(withMisc(structuredClone(record.draft)));setSearch('');setCategoryFilter('all');setStatus(`已載入 ${record.customerName} V${record.version}，下次匯出會另存新版本。`);
   }
   async function exportPdf() {
     if(!localPreview&&!syncKey){setHistoryOpen(true);setStatus('請先啟用雲端同步，確保報價不會因清除網站資料而遺失。');window.scrollTo({top:0,behavior:'smooth'});return;}
     if(!draft.customer.name.trim()) {setStatus('請填寫客戶姓名。');customerNameRef.current?.focus();customerNameRef.current?.scrollIntoView({behavior:'smooth',block:'center'});return;}
     if(!lines.some(l=>l.included)&&draft.packagePrice===0) {setStatus('請選擇工程項目或填寫套餐金額。');return;}
     setBusy(true);setStatus('正在製作及保存 PDF…');
-    const snapshot=structuredClone(draft);let savedNumber:number|string=0;
-    try {await exportQuotePdf({customer:draft.customer,categories:draft.categories,lines:lines.filter(l=>l.included),packageTotal:draft.packagePrice,extrasTotal:extras,total:draft.packagePrice+extras,packageLabel:draft.packageName,notes:draft.notes},{localPreview,beforeDownload:async(pdf,receipt)=>{const record=syncKey?await saveCloudVersion(syncKey,snapshot,snapshot.packagePrice+extras,pdf,receipt):await saveVersion({quoteId:snapshot.quoteId,customerName:snapshot.customer.name,address:[snapshot.customer.estate,snapshot.customer.block,snapshot.customer.floor,snapshot.customer.unit].filter(Boolean).join(' '),total:snapshot.packagePrice+extras,draft:snapshot,receipt,pdf});savedNumber=record.version;setVersions(v=>[record,...v]);}});setStatus(`V${savedNumber} 已保存至${syncKey?'雲端':'此瀏覽器'}，PDF 下載已開始。${localPreview?'本機預覽未保存公司副本。':'公司 PDF 副本已保存。'}`);}
+    const snapshot=structuredClone(draft);
+    const printable=normalizeNumbering({categories:draft.categories,catalog:lines.filter(l=>l.included).map(l=>l.item)});
+    const printLines=lines.filter(l=>l.included).map(l=>({...l,item:printable.catalog.find(i=>i.id===l.item.id)!}));
+    let savedNumber:number|string=0;
+    try {await exportQuotePdf({customer:draft.customer,categories:draft.categories,lines:printLines,packageTotal:draft.packagePrice,extrasTotal:extras,total:draft.packagePrice+extras,packageLabel:draft.packageName,notes:draft.notes},{localPreview,beforeDownload:async(pdf,receipt)=>{const record=syncKey?await saveCloudVersion(syncKey,snapshot,snapshot.packagePrice+extras,pdf,receipt):await saveVersion({quoteId:snapshot.quoteId,customerName:snapshot.customer.name,address:[snapshot.customer.estate,snapshot.customer.block,snapshot.customer.floor,snapshot.customer.unit].filter(Boolean).join(' '),total:snapshot.packagePrice+extras,draft:snapshot,receipt,pdf});savedNumber=record.version;setVersions(v=>[record,...v]);}});setStatus(`V${savedNumber} 已保存至${syncKey?'雲端':'此瀏覽器'}，PDF 下載已開始。${localPreview?'本機預覽未保存公司副本。':'公司 PDF 副本已保存。'}`);}
     catch(e){setStatus(`匯出失敗：${e instanceof Error?e.message:'請重試'}`);} finally{setBusy(false);}
   }
   return <div className="staff-shell">
     <header className="staff-top"><img src="/quote-assets/logo.png" alt="LABEL STUDIO"/><div><h1>員工報價工作台</h1><p>自由編輯・手動加項・私人 PDF 副本</p></div><a href="/">客人版</a></header>
-    <div className="staff-toolbar"><button className="button ghost" onClick={()=>setHistoryOpen(v=>!v)}>客戶報價版本（{versions.length}）</button><button className="button ghost" onClick={backup}>匯出草稿</button><button className="button ghost" onClick={()=>{if(confirm('開始另一份客戶報價？目前未匯出的改動會被取代，已保存版本會保留。')){setDraft(fresh());setStatus('');}}}>新增客戶報價</button><button className="button primary" disabled={busy} onClick={exportPdf}>{busy?'正在匯出…':'匯出報價 PDF'}</button></div>
+    <div className="staff-toolbar"><button className="button ghost" disabled={busy} onClick={()=>{setInboxOpen(v=>!v);if(!inboxOpen)void refreshInbox();}}>客人提交報價</button><button className="button ghost" onClick={()=>setHistoryOpen(v=>!v)}>客戶報價版本（{versions.length}）</button><button className="button ghost" onClick={backup}>匯出草稿</button><button className="button ghost" onClick={()=>{if(confirm('開始另一份客戶報價？目前未匯出的改動會被取代，已保存版本會保留。')){setDraft(fresh());setStatus('');}}}>新增客戶報價</button><button className="button primary" disabled={busy} onClick={exportPdf}>{busy?'正在匯出…':'匯出報價 PDF'}</button></div>
     <p className="staff-notice">員工版沒有密碼。欄位改動只影響這份報價；匯出時會將 PDF 及客戶資料副本保存至公司。</p>
     <p>{storageError}</p>
+    {inboxOpen&&<section className="paper-card"><h2>客人提交報價</h2><p>客人匯出時保存的原始報價。載入後修改，會另存員工版本，保留客人原單。</p><div className="staff-toolbar"><button className="button ghost" disabled={busy} onClick={()=>refreshInbox()}>重新讀取客人報價</button><button className="button ghost" disabled={busy} onClick={()=>refreshInbox(true)}>讀取舊 PDF 副本</button></div>{inboxError&&<p role="alert">{inboxError}</p>}{inboxError.includes('STAFF_INBOX_KEY_HASH')&&fingerprint&&<label>管理員連結識別碼（設定至 Vercel 的 STAFF_INBOX_KEY_HASH）<textarea readOnly value={fingerprint}/></label>}<label>搜尋客人／地址<input type="search" value={inboxSearch} onChange={e=>setInboxSearch(e.target.value)}/></label>{inbox.filter(v=>`${v.customerName} ${v.address}`.includes(inboxSearch.trim())).map(v=><div className="staff-version" key={v.id}><div><strong>{v.customerName}</strong><p>{v.address} · {new Date(v.savedAt).toLocaleString('zh-HK')} · {formatCurrency(v.total)}</p></div><button className="button primary" disabled={busy} onClick={()=>{if(confirm('載入此客人報價？目前未保存的改動會被取代。')){setDraft(withMisc(structuredClone(v.draft)));setCategoryFilter('all');setSearch('');setStatus('已載入客人報價，修改後匯出會保存為員工版本。');}}}>載入客人報價</button><button className="button ghost" onClick={()=>downloadCustomerPdf(syncKey,{id:v.id}).catch(e=>setInboxError(e.message))}>下載客人原單</button></div>)}{!busy&&!inboxError&&!inbox.length&&<p>暫未有新版客人提交紀錄。</p>}{legacyPdfs.length>0&&<><h3>PDF 副本（包括舊版，未必有可編輯資料）</h3>{legacyPdfs.map(v=><div className="staff-version" key={v.path}><div><p>{new Date(v.savedAt).toLocaleString('zh-HK')} · {Math.round(v.size/1024)} KB</p><small>{v.path.split('/').pop()}</small></div><button className="button ghost" onClick={()=>downloadCustomerPdf(syncKey,{path:v.path}).catch(e=>setInboxError(e.message))}>下載 PDF</button></div>)}</>}</section>}
     {historyOpen&&<section className="paper-card"><h2>客戶報價版本</h2><p>{syncKey?'已連接私人雲端紀錄。手機開啟同一條私人同步連結，即可載入同一批報價。':'尚未啟用雲端同步。正式版匯出前必須先啟用，確保版本存於雲端。'}</p><p>每次匯出保留獨立版本，舊版本不會被覆蓋。</p><div className="staff-toolbar">{!syncKey?<button className="button primary" disabled={localPreview||busy} onClick={()=>{try{setSyncKey(createSyncKey());setVersions([]);setShowSyncLink(true);}catch{setStatus('瀏覽器未能保存同步設定。');}}}>啟用雲端同步</button>:<><button className="button ghost" onClick={()=>setShowSyncLink(v=>!v)}>顯示私人同步連結</button><button className="button ghost" disabled={busy} onClick={async()=>{setBusy(true);try{const local=await listVersions<Draft>();const remote=await listCloudVersions<Draft>(syncKey);for(const v of local){if(!remote.some(r=>(r.draft as Draft & {migratedFrom?:string}).migratedFrom===v.id))await saveCloudVersion(syncKey,{...v.draft,migratedFrom:v.id},v.total,v.pdf,v.receipt);}setVersions(await listCloudVersions<Draft>(syncKey));setStatus("本機舊版本已備份至雲端。");}catch(e){setStatus(e instanceof Error?e.message:"備份失敗");}finally{setBusy(false);}}}>備份本機舊版本</button><button className="button ghost" disabled={busy} onClick={()=>listCloudVersions<Draft>(syncKey).then(setVersions).catch(e=>setStatus(e.message))}>重新整理紀錄</button></>}</div>{localPreview&&!syncKey&&<p>跨裝置同步需要先上載新版至正式網站；本機預覽只儲存本機版本。</p>}{showSyncLink&&syncKey&&<label>私人同步連結（請自行保存，只傳到自己的裝置）<textarea readOnly value={location.origin+location.pathname+'#sync='+syncKey}/><small>持有此連結即可讀取整批客戶報價。請將連結加書籤及另外備份。清除網站資料不會刪除雲端報價；重新開啟這條連結即可恢復存取。</small></label>}<label>搜尋客戶／地址<input type="search" value={historySearch} onChange={e=>setHistorySearch(e.target.value)} placeholder="客戶姓名或工程地址"/></label>{versions.filter(v=>`${v.customerName} ${v.address}`.toLowerCase().includes(historySearch.trim().toLowerCase())).map(v=><div className="staff-version" key={v.id}><div><strong>{v.customerName} · V{v.version}</strong><p>{v.address||'未填地址'} · {new Date(v.savedAt).toLocaleString('zh-HK')} · {formatCurrency(v.total)}</p><small>報價 {v.quoteId.slice(0,8)}</small></div><button className="button ghost" disabled={busy} onClick={()=>restoreVersion(v)}>載入修改</button><button className="button ghost" onClick={async()=>{try{downloadVersionPdf(syncKey?{...v,pdf:await getCloudPdf(syncKey,v.id)}:v);}catch(e){setStatus(e instanceof Error?e.message:'下載失敗');}}}>下載原版 PDF</button></div>)}{!versions.length&&<p>未有版本，第一次匯出 PDF 後會自動加入。</p>}</section>}
 
     <section className="paper-card"><h2>客戶資料</h2><div className="form-grid">{([['name','客戶姓名'],['phone','電話'],['email','電郵'],['estate','屋苑／工程地址'],['block','座數'],['floor','樓層'],['unit','單位'],['area','實用面積（呎）']] as const).map(([key,label])=><label key={key}>{label}<input ref={key==='name'?customerNameRef:undefined} required={key==='name'} value={draft.customer[key]} onChange={e=>patch({customer:{...draft.customer,[key]:e.target.value}})}/></label>)}</div></section>

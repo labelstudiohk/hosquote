@@ -229,7 +229,8 @@ export default function App() {
     }
     setIsExporting(true);
     try {
-      await exportQuotePdf({ customer, categories, lines: quoteLines, packageTotal, extrasTotal, total });
+      const customerDraft={customer,categories,packageName:selectedPackage?.label||'另行報價',packagePrice:packageTotal,notes:'',catalog:quoteLines.map(l=>({...l.item,autoRule:undefined,price:l.effectiveUnitPrice,defaultQty:l.effectiveQty,pricingMode:l.amount>0?'manual':l.item.pricingMode})),selections:Object.fromEntries(quoteLines.map(l=>[l.item.id,{selected:l.included,qty:l.effectiveQty,unitPrice:l.effectiveUnitPrice}]))};
+      await exportQuotePdf({ customer, categories, lines: quoteLines, packageTotal, extrasTotal, total },{customerDraft});
       window.alert('報價副本已安全保存至公司，PDF 下載已開始。');
     }
     catch (error) { window.alert(`匯出失敗：${error instanceof Error ? error.message : "請重試"}`); }

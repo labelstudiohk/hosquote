@@ -135,15 +135,16 @@ export async function createQuotePdf(data: QuoteData): Promise<Uint8Array> {
   return pdf.save();
 }
 
-export async function exportQuotePdf(data: QuoteData, options: { localPreview?: boolean; beforeDownload?: (pdf: Blob, receipt: string) => Promise<void> } = {}) {
+export async function exportQuotePdf(data: QuoteData, options: { customerDraft?: unknown; localPreview?: boolean; beforeDownload?: (pdf: Blob, receipt: string) => Promise<void> } = {}) {
   const bytes=await createQuotePdf(data);const blob=new Blob([new Uint8Array(bytes)],{type:'application/pdf'});
   if (blob.size > 4 * 1024 * 1024) throw new Error('PDF 超過 4 MB，請聯絡公司。');
   let receipt = '';
   const preview = options.localPreview === true && ['localhost','127.0.0.1','[::1]'].includes(window.location.hostname);
   if (!preview) {
-  const response = await fetch('/api/quote-copy', {
-    method: 'POST', headers: { 'Content-Type': 'application/pdf' },
-    body: blob, signal: AbortSignal.timeout(60000),
+  const submission=options.customerDraft?JSON.stringify({draft:options.customerDraft,pdf:await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('未能讀取 PDF。'));reader.readAsDataURL(blob);})}):null;
+  const response = await fetch(submission?'/api/customer-quotes':'/api/quote-copy', {
+    method: 'POST', headers: { 'Content-Type': submission?'application/json':'application/pdf' },
+    body: submission||blob, signal: AbortSignal.timeout(60000),
   });
   const result = await response.json().catch(() => null);
   if (!response.ok || result?.saved !== true) {
