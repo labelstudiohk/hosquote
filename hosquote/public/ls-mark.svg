@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="LS 新居屋報價">
+  <rect width="512" height="512" rx="88" fill="#0E6B68"/>
+  <path d="M125 116h55v218h135v62H125z" fill="#FFFDF8"/>
+  <path d="M370 142c-26-18-53-26-84-26-51 0-86 24-86 66 0 35 24 52 70 62 30 6 40 12 40 27 0 13-13 21-34 21-27 0-54-12-76-34l-35 48c29 29 67 44 108 44 58 0 95-28 95-72 0-40-27-57-78-68-25-5-34-10-34-24 0-12 11-19 28-19 23 0 44 9 64 26z" fill="#BDE7DF"/>
+  <path d="M116 412h280" stroke="#BDE7DF" stroke-width="13" stroke-linecap="round"/>
+</svg>
