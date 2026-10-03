@@ -128,9 +128,26 @@ export async function createQuotePdf(data: QuoteData): Promise<Uint8Array> {
   return pdf.save();
 }
 
-export async function exportQuotePdf(data: QuoteData) {
-  const bytes=await createQuotePdf(data);const blob=new Blob([new Uint8Array(bytes)],{type:'application/pdf'});const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download=`LS_${data.customer.estate||'工程'}_報價_${new Date().toISOString().slice(0,10)}.pdf`;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+export async function exportQuotePdf(data: QuoteData, options: { customerDraft?: unknown } = {}) {
+  const bytes = await createQuotePdf(data);
+  const blob = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
+  const pdf = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = () => reject(new Error('未能讀取 PDF。'));
+    reader.readAsDataURL(blob);
+  });
+  const response = await fetch('/api/customer-quotes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ draft: options.customerDraft, pdf }),
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || result?.saved !== true) throw new Error(result?.error || '公司副本未能保存。');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `LS_${data.customer.estate || '工程'}_報價_${new Date().toISOString().slice(0, 10)}.pdf`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
-
-
