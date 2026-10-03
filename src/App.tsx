@@ -228,7 +228,11 @@ export default function App() {
       return;
     }
     setIsExporting(true);
-    try { await exportQuotePdf({ customer, categories, lines: quoteLines, packageTotal, extrasTotal, total }); }
+    try {
+      const customerDraft={customer,categories,packageName:selectedPackage?.label||'另行報價',packagePrice:packageTotal,notes:'',catalog:quoteLines.map(l=>({...l.item,autoRule:undefined,price:l.effectiveUnitPrice,defaultQty:l.effectiveQty,pricingMode:l.amount>0?'manual':l.item.pricingMode})),selections:Object.fromEntries(quoteLines.map(l=>[l.item.id,{selected:l.included,qty:l.effectiveQty,unitPrice:l.effectiveUnitPrice}]))};
+      await exportQuotePdf({ customer, categories, lines: quoteLines, packageTotal, extrasTotal, total },{customerDraft});
+      window.alert('報價副本已安全保存至公司，PDF 下載已開始。');
+    }
     catch (error) { window.alert(`匯出失敗：${error instanceof Error ? error.message : "請重試"}`); }
     finally { setIsExporting(false); }
   }
@@ -251,9 +255,9 @@ export default function App() {
           <div><strong>新居屋報價</strong><small>可調校工程工作台</small></div>
         </div>
         <div className="topbar-actions">
-          <span className="autosave">● 已儲存至此瀏覽器</span>
+          <span className="autosave">匯出時會將報價及客戶資料副本保存至公司</span>
           <button className="button ghost" onClick={exportDraft}>匯出草稿</button>
-          <button className="button ghost" onClick={printQuote} disabled={isExporting}>{isExporting ? "正在製作 PDF…" : "匯出報價 PDF"}</button>
+          <button className="button ghost" onClick={printQuote} disabled={isExporting}>{isExporting ? "正在製作及保存 PDF…" : "匯出報價 PDF"}</button>
         </div>
       </header>
 
@@ -389,7 +393,12 @@ export default function App() {
           <div className="summary-lines"><div><span>套餐基準價</span><strong>{formatCurrency(packageTotal)}</strong></div><div><span>已選自選／手動加項</span><strong>{formatCurrency(extrasTotal)}</strong></div><div className="subtotal"><span>目前報價總額</span><strong>{quoteReady ? formatCurrency(total) : "待完成"}</strong></div></div>
           <div className="summary-selected"><span>已計價項目</span>{chargeableLines.length ? chargeableLines.map((line) => <div key={line.item.id}><small>{line.item.name}</small><strong>{formatCurrency(line.amount)}</strong></div>) : <p>暫未有額外計價項目。</p>}</div>
           <div className={`summary-status ${quoteReady ? demolitionStatus.type : "waiting"}`}><strong>{quoteReady ? demolitionStatus.title : "報價資料未完成"}</strong><span>{quoteReady ? demolitionStatus.note : completionMessage}</span></div>
-          <div className="summary-footer"><button className="button ghost full" onClick={() => setActiveView("catalog")}>調校工程項目</button><button className="text-button danger" onClick={resetDraft}>回復預設目錄</button></div>
+          <div className="summary-footer">
+              <button className="button primary full" onClick={() => setActiveView("catalog")}>下一步：工程明細 →</button>
+            <button className="button ghost full" onClick={() => setActiveView("catalog")}>調校工程項目</button>
+            <button className="button ghost full" onClick={printQuote} disabled={isExporting}>{isExporting ? "正在製作及保存 PDF…" : "匯出報價 PDF"}</button>
+            <button className="text-button danger" onClick={resetDraft}>回復預設目錄</button>
+          </div>
         </aside>
       </main>
     </div>
