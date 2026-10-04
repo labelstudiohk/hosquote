@@ -20,3 +20,14 @@ input,select,textarea,.form-grid input,.area-input input,.compact-input,.number-
 .upload-icon{background:#eee7da;border:0;border-radius:12px;color:#9c8d75;box-shadow:none}.result-summary{background:#6b6559!important}.topbar-actions .autosave{background:transparent;border:0;color:#9c8d75}.autosave:before{background:#a99e85}
 @media(max-width:820px){.section-heading{padding:22px}.section-heading h1{font-size:26px}.summary-panel{background:#eee7da!important;border:1px solid #e2d9ca!important;border-radius:14px 14px 0 0;box-shadow:0 -5px 20px #5149360e}.paper-card,.catalog-section,.ai-results{box-shadow:0 8px 20px #51493608}}
 
+
+
+
+
+/* Reference button treatment: visual only. */
+.button{border-radius:999px!important;border:1px solid #ac9c82!important;background:transparent!important;color:#514a40!important;box-shadow:none!important;min-height:42px}
+.button.primary{background:#514a40!important;color:#fcfaf6!important;border-color:#514a40!important}
+.button.ghost{background:#fcfaf6!important;color:#514a40!important;border-color:#d2c2aa!important}
+.binary-options button{border-radius:999px!important;border:1px solid #ac9c82!important;background:#fcfaf6!important;color:#514a40!important}
+.binary-options button.selected,.binary-options button[aria-pressed=true]{background:#eee7da!important;color:#48453f!important}
+@media(max-width:820px){.topbar-actions .button{min-height:44px!important}.summary-footer .button{min-height:44px!important;width:100%}}
