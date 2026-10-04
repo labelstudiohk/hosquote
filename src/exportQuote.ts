@@ -4,7 +4,7 @@ import { packageOptions } from './catalog';
 
 type PdfDoc = { embedPng: (data: string) => Promise<unknown>; addPage: (size: number[]) => { drawImage: (image: unknown, options: object) => void }; save: () => Promise<Uint8Array> };
 declare global { interface Window { PDFLib: { PDFDocument: { create: () => Promise<PdfDoc> } } } }
-type QuoteData = { customer: CustomerInfo; categories: CatalogCategory[]; lines: QuoteLine[]; packageTotal: number; extrasTotal: number; total: number };
+type QuoteData = { customer: CustomerInfo; categories: CatalogCategory[]; lines: QuoteLine[]; packageTotal: number; extrasTotal: number; total: number; packageLabel?: string; notes?: string };
 const W = 1240, H = 1754, M = 64;
 const cash = (n: number) => 'HK$' + n.toLocaleString('en-HK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => reject(new Error('未能載入報價範本')); i.src = src; });
@@ -63,7 +63,7 @@ export async function createQuotePdf(data: QuoteData): Promise<Uint8Array> {
   const leftWidth=550, rightX=M+650;
   y+=Math.max(meta('PREPARED FOR / 客戶',data.customer.name||'待填寫',M,y,leftWidth),meta('REFERENCE / 報價編號',quoteId,rightX,y,W-M-rightX))+25;
   y+=Math.max(meta('CONTACT / 聯絡電話',data.customer.phone||'—',M,y,leftWidth),meta('ISSUED / 報價日期',dateText,rightX,y,W-M-rightX))+25;
-  y+=Math.max(meta('EMAIL / 電郵',data.customer.email||'—',M,y,leftWidth),meta('PACKAGE / 選用套餐',packageOptions.find(p=>p.id===data.customer.packageId)?.label||'另行報價',rightX,y,W-M-rightX))+40;
+  y+=Math.max(meta('EMAIL / 電郵',data.customer.email||'—',M,y,leftWidth),meta('PACKAGE / 選用套餐',data.packageLabel ?? (packageOptions.find(p=>p.id===data.customer.packageId)?.label||'另行報價'),rightX,y,W-M-rightX))+40;
   if(y>1380) { newPage('報價摘要'); }
   y=Math.max(y,1320);rule(y);y+=36;
   text('TOTAL INVESTMENT / 報價總額',M,y,17);
@@ -102,6 +102,13 @@ export async function createQuotePdf(data: QuoteData): Promise<Uint8Array> {
     if(scope==='extra')y+=block('電力及弱電只列參考價格，不計入報價總額。未選項目不計入本報價。',M,y+15,W-2*M,17)+15;
   };
   table('package','套餐包括項目');table('extra','額外自選項目');
+  if (data.notes?.trim()) {
+    newPage('報價備註');
+    for (const line of wrapped(data.notes,W-2*M,19)) {
+      if(y>1560) newPage('報價備註（續）');
+      text(line,M,y,19); y+=27;
+    }
+  }
   newPage('總額、付款安排及確認');section('Total Amount  報價總額：'+cash(data.total));y+=28;
   const stages=[['第 1 期付款：工程費之訂金',15],['第 2 期付款：清拆前 7 天',15],['第 3 期付款：水電開工前',30],['第 4 期付款：訂做傢俬前',35],['第 5 期付款：完工後 7 天內清付',5]] as const;
   for(const [label,pct] of stages){ctx.strokeStyle='#333';ctx.strokeRect(M,y,W-2*M,66);text(`${label}（${pct}%）`,M+16,y+21,20);right(cash(Math.round(data.total*pct)/100),W-M-16,y+21,20);y+=66;}
@@ -128,26 +135,27 @@ export async function createQuotePdf(data: QuoteData): Promise<Uint8Array> {
   return pdf.save();
 }
 
-export async function exportQuotePdf(data: QuoteData, options: { customerDraft?: unknown } = {}) {
-  const bytes = await createQuotePdf(data);
-  const blob = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
-  const pdf = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',')[1]);
-    reader.onerror = () => reject(new Error('未能讀取 PDF。'));
-    reader.readAsDataURL(blob);
-  });
-  const response = await fetch('/api/customer-quotes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ draft: options.customerDraft, pdf }),
+export async function exportQuotePdf(data: QuoteData, options: { customerDraft?: unknown; localPreview?: boolean; beforeDownload?: (pdf: Blob, receipt: string) => Promise<void> } = {}) {
+  const bytes=await createQuotePdf(data);const blob=new Blob([new Uint8Array(bytes)],{type:'application/pdf'});
+  if (blob.size > 4 * 1024 * 1024) throw new Error('PDF 超過 4 MB，請聯絡公司。');
+  let receipt = '';
+  const preview = options.localPreview === true && ['localhost','127.0.0.1','[::1]'].includes(window.location.hostname);
+  if (!preview) {
+  const submission=options.customerDraft?JSON.stringify({draft:options.customerDraft,pdf:await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('未能讀取 PDF。'));reader.readAsDataURL(blob);})}):null;
+  const response = await fetch(submission?'/api/customer-quotes':'/api/quote-copy', {
+    method: 'POST', headers: { 'Content-Type': submission?'application/json':'application/pdf' },
+    body: submission||blob, signal: AbortSignal.timeout(60000),
   });
   const result = await response.json().catch(() => null);
-  if (!response.ok || result?.saved !== true) throw new Error(result?.error || '公司副本未能保存。');
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `LS_${data.customer.estate || '工程'}_報價_${new Date().toISOString().slice(0, 10)}.pdf`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  if (!response.ok || result?.saved !== true) {
+    throw new Error(result?.error || '公司副本未能保存，請檢查網絡後重試。');
+  }
+  receipt = result.receipt as string;
+  }
+  await options.beforeDownload?.(blob, receipt);
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`LS_${data.customer.estate||'工程'}_報價_${new Date().toISOString().slice(0,10)}.pdf`;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  return receipt;
 }
+
+
