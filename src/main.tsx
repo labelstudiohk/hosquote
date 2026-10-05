@@ -5,8 +5,10 @@ import Staff from "./Staff";
 import "./styles.css";
 import "./warm-editorial.css";
 
+const isStaff = window.location.pathname === "/staff.html" || new URLSearchParams(window.location.search).get("staff") === "1";
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {window.location.pathname === "/staff.html" ? <Staff /> : <App />}
+    {isStaff ? <Staff /> : <App />}
   </StrictMode>,
 );
