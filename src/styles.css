@@ -27,6 +27,7 @@ button { cursor:pointer; }
 @media print { .topbar-actions,.workspace-nav,.summary-footer,.remove-button,.switch,.text-button,.button,.file-picker { display:none !important; }.workspace { display:block; padding:0; }.summary-panel { position:static; margin:16px 0; background:#fff; color:#000; border:1px solid #000; }.summary-top,.summary-package,.summary-selected,.summary-status { display:block; color:#000; border-color:#000; }.summary-lines span,.summary-lines strong,.summary-selected small,.summary-selected strong,.summary-top>span { color:#000; }.main-panel { width:100%; }.paper-card,.catalog-section { box-shadow:none; break-inside:avoid; } }
 
 .required-warning { margin:14px 0 0; padding:10px 12px; border-left:3px solid var(--gold); background:#fff8e9; color:#79530e; font-size:12px; font-weight:700; }
+.required-mark { color: var(--clay, #a87b65); font-weight:700; }
 .category-code { flex:0 0 64px !important; min-width:0; text-align:center; border:0 !important; color:#fff !important; outline-color:#fff !important; padding:4px 6px !important; }
 .category-remove { color:var(--coral); }
 .category-select { grid-column:2; width:100%; max-width:230px; padding:4px 6px; border:1px solid var(--line); background:#fff; color:var(--muted); font-size:10px; outline-color:var(--teal); }
