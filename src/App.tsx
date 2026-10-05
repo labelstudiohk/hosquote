@@ -415,9 +415,7 @@ export default function App() {
           <div className="summary-lines"><div><span>套餐基準價</span><strong>{formatCurrency(packageTotal)}</strong></div><div><span>已選自選／手動加項</span><strong>{formatCurrency(extrasTotal)}</strong></div><div className="subtotal"><span>目前報價總額</span><strong>{quoteReady ? formatCurrency(total) : "待完成"}</strong></div></div>
           <div className="summary-selected"><span>已計價項目</span>{chargeableLines.length ? chargeableLines.map((line) => <div key={line.item.id}><small>{line.item.name}</small><strong>{formatCurrency(line.amount)}</strong></div>) : <p>暫未有額外計價項目。</p>}</div>
           <div className={`summary-status ${quoteReady ? demolitionStatus.type : "waiting"}`}><strong>{quoteReady ? demolitionStatus.title : "報價資料未完成"}</strong><span>{quoteReady ? demolitionStatus.note : completionMessage}</span></div>
-          <div className="summary-footer">
-              <button className="button primary full" onClick={goToCatalog}>下一步：工程明細 →</button>
-            <button className="button ghost full" onClick={goToCatalog}>調校工程項目</button>
+          <div className="summary-footer">              <button className="button primary full" onClick={goToCatalog} disabled={!quoteReady}>下一步：工程明細 →</button><button className="button ghost full" onClick={goToCatalog}>調校工程項目</button>
             <button className="button ghost full" onClick={printQuote} disabled={isExporting}>{isExporting ? "正在製作及保存 PDF…" : "匯出報價 PDF"}</button>
             <button className="text-button danger" onClick={resetDraft}>回復預設目錄</button>
           </div>
