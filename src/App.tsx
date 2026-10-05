@@ -113,13 +113,11 @@ export default function App() {
         : { type: "manual", title: "只拆其中一個位置｜待手動定價", note: "已加入 HK$26,000 水喉工程；單獨拆卸泥水費用須由公司另行報價。" };
   function getQuoteValidationMessage() {
     const requiredFields: Array<[string, string]> = [
-      ["客戶姓名", customer.name], ["電話", customer.phone], ["電郵", customer.email],
-      ["屋苑／期數", customer.estate], ["座數", customer.block],
-      ["樓層及單位", customer.floor && customer.unit ? "已填寫" : ""],
+      ["客戶姓名", customer.name], ["電話", customer.phone],
+      ["屋苑／期數", customer.estate],
     ];
     const missing = requiredFields.find(([, value]) => !value.trim());
     if (missing) return `請先填寫${missing[0]}。`;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return "請填寫有效電郵地址。";
     if (!area) return "請先填寫單位尺數。";
     if (!selectedPackage) return "請選擇適用套餐。";
     if (!customer.kitchenDemolition || !customer.bathroomDemolition) return "請確認廚房及廁所拆卸安排。";
@@ -301,13 +299,13 @@ export default function App() {
                 <div className="form-grid">
                   <label>客戶姓名<input value={customer.name} onChange={(event) => updateCustomer("name", event.target.value)} placeholder="例如：陳先生" required /></label>
                   <label>電話<input value={customer.phone} onChange={(event) => updateCustomer("phone", event.target.value)} placeholder="聯絡電話" inputMode="tel" required /></label>
-                  <label>電郵<input value={customer.email} onChange={(event) => updateCustomer("email", event.target.value)} placeholder="name@example.com" type="email" required /></label>
+                  <label>電郵<input value={customer.email} onChange={(event) => updateCustomer("email", event.target.value)} placeholder="name@example.com" type="email" /></label>
                   <label>屋苑／期數<input value={customer.estate} onChange={(event) => updateCustomer("estate", event.target.value)} placeholder="例如：啟盈苑 第一期" required /></label>
-                  <label>座數<input value={customer.block} onChange={(event) => updateCustomer("block", event.target.value)} placeholder="座" required /></label>
+                  <label>座數<input value={customer.block} onChange={(event) => updateCustomer("block", event.target.value)} placeholder="座" /></label>
                   <label>樓層及單位<input value={`${customer.floor}${customer.floor && customer.unit ? " / " : ""}${customer.unit}`} onChange={(event) => {
                     const [floor = "", unit = ""] = event.target.value.split("/").map((text) => text.trim());
                     setCustomer((current) => ({ ...current, floor, unit }));
-                  }} placeholder="例如：18 / B" required /></label>
+                  }} placeholder="例如：18 / B" /></label>
                 </div>
               </section>
 
@@ -422,4 +420,3 @@ export default function App() {
     </div>
   );
 }
-
