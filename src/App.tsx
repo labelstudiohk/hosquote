@@ -4,7 +4,7 @@ import { calculateLines, normalizeCatalog } from "./pricing";
 import { defaultCatalog, defaultCategories, formatCurrency, packageOptions, recommendPackage } from "./catalog";
 import type { AiAnalysis, CatalogCategory, CatalogItem, CustomerInfo, ItemSelection } from "./types";
 
-const STORAGE_KEY = "ls-hosquote-draft-v1";
+const STORAGE_KEY = "ls-hosquote-draft-v1"; // production rebuild marker
 const AUTO_MASONRY_ITEM_ID = "X01.02";
 
 const emptyCustomer: CustomerInfo = {
@@ -113,37 +113,33 @@ export default function App() {
         : { type: "manual", title: "只拆其中一個位置｜待手動定價", note: "已加入 HK$26,000 水喉工程；單獨拆卸泥水費用須由公司另行報價。" };
   function getQuoteValidationMessage() {
     const requiredFields: Array<[string, string]> = [
-      ["客戶姓名", customer.name],
-      ["電話", customer.phone],
-      ["電郵", customer.email],
-      ["屋苑／期數", customer.estate],
-      ["座數", customer.block],
+      ["客戶姓名", customer.name], ["電話", customer.phone], ["電郵", customer.email],
+      ["屋苑／期數", customer.estate], ["座數", customer.block],
       ["樓層及單位", customer.floor && customer.unit ? "已填寫" : ""],
     ];
-    const missingField = requiredFields.find(([, value]) => !value.trim());
-    if (missingField) return `請先填寫${missingField[0]}。`;
+    const missing = requiredFields.find(([, value]) => !value.trim());
+    if (missing) return `請先填寫${missing[0]}。`;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return "請填寫有效電郵地址。";
     if (!area) return "請先填寫單位尺數。";
     if (!selectedPackage) return "請選擇適用套餐。";
     if (!customer.kitchenDemolition || !customer.bathroomDemolition) return "請確認廚房及廁所拆卸安排。";
     return "";
   }
-
   const completionMessage = getQuoteValidationMessage() || "報價分析資料已完成。";
   const quoteReady = !getQuoteValidationMessage();
 
-  function updateCustomer<K extends keyof CustomerInfo>(key: K, value: CustomerInfo[K]) {
-    setCustomer((current) => ({ ...current, [key]: value }));
-  }
-
   function goToCatalog() {
-    const validationMessage = getQuoteValidationMessage();
-    if (validationMessage) {
-      window.alert(`未能進入工程明細：${validationMessage}`);
+    const message = getQuoteValidationMessage();
+    if (message) {
+      window.alert(`未能進入工程明細：${message}`);
       setActiveView("details");
       return;
     }
     setActiveView("catalog");
+  }
+
+  function updateCustomer<K extends keyof CustomerInfo>(key: K, value: CustomerInfo[K]) {
+    setCustomer((current) => ({ ...current, [key]: value }));
   }
 
   function updateItem(itemId: string, patch: Partial<CatalogItem>) {
@@ -303,12 +299,12 @@ export default function App() {
               <section className="paper-card customer-card">
                 <div className="card-title"><h2>客戶基本資料</h2><span>草稿不會公開</span></div>
                 <div className="form-grid">
-                  <label>客戶姓名 <span className="required-mark">*</span><input required aria-required="true" value={customer.name} onChange={(event) => updateCustomer("name", event.target.value)} placeholder="例如：陳先生" /></label>
-                  <label>電話 <span className="required-mark">*</span><input required aria-required="true" value={customer.phone} onChange={(event) => updateCustomer("phone", event.target.value)} placeholder="聯絡電話" inputMode="tel" /></label>
-                  <label>電郵 <span className="required-mark">*</span><input required aria-required="true" value={customer.email} onChange={(event) => updateCustomer("email", event.target.value)} placeholder="name@example.com" type="email" /></label>
-                  <label>屋苑／期數 <span className="required-mark">*</span><input required aria-required="true" value={customer.estate} onChange={(event) => updateCustomer("estate", event.target.value)} placeholder="例如：啟盈苑 第一期" /></label>
-                  <label>座數 <span className="required-mark">*</span><input required aria-required="true" value={customer.block} onChange={(event) => updateCustomer("block", event.target.value)} placeholder="座" /></label>
-                  <label>樓層及單位 <span className="required-mark">*</span><input required aria-required="true" value={`${customer.floor}${customer.floor && customer.unit ? " / " : ""}${customer.unit}`} onChange={(event) => {
+                  <label>客戶姓名<input value={customer.name} onChange={(event) => updateCustomer("name", event.target.value)} placeholder="例如：陳先生" /></label>
+                  <label>電話<input value={customer.phone} onChange={(event) => updateCustomer("phone", event.target.value)} placeholder="聯絡電話" inputMode="tel" /></label>
+                  <label>電郵<input value={customer.email} onChange={(event) => updateCustomer("email", event.target.value)} placeholder="name@example.com" type="email" /></label>
+                  <label>屋苑／期數<input value={customer.estate} onChange={(event) => updateCustomer("estate", event.target.value)} placeholder="例如：啟盈苑 第一期" /></label>
+                  <label>座數<input value={customer.block} onChange={(event) => updateCustomer("block", event.target.value)} placeholder="座" /></label>
+                  <label>樓層及單位<input value={`${customer.floor}${customer.floor && customer.unit ? " / " : ""}${customer.unit}`} onChange={(event) => {
                     const [floor = "", unit = ""] = event.target.value.split("/").map((text) => text.trim());
                     setCustomer((current) => ({ ...current, floor, unit }));
                   }} placeholder="例如：18 / B" /></label>
@@ -318,7 +314,7 @@ export default function App() {
               <section className="paper-card package-card">
                 <div className="card-title"><div><p className="eyebrow">必填分析欄位</p><h2>單位尺數與套餐</h2></div><span className="required-chip">尺數必填</span></div>
                 <div className="package-layout">
-                  <label className="area-input">單位尺數（呎） <span className="required-mark">*</span><input required aria-required="true" type="number" min="1" value={customer.area} onChange={(event) => updateCustomer("area", event.target.value)} placeholder="輸入例如 438" /><small>以客戶提供的單位面積作初步套餐分析。</small></label>
+                  <label className="area-input">單位尺數（呎）<input type="number" min="1" value={customer.area} onChange={(event) => updateCustomer("area", event.target.value)} placeholder="輸入例如 438" /><small>以客戶提供的單位面積作初步套餐分析。</small></label>
                   <div className="recommendation">
                     <span>系統建議</span>
                     <strong>{suggestedPackage ? suggestedPackage.label : area > 600 ? "超出標準套餐 範圍" : "請先輸入尺數"}</strong>
@@ -357,7 +353,7 @@ export default function App() {
                 <div><span>目前 套餐包括項目</span><strong>{selectedPackage ? `${selectedPackage.includedFurnitureFeet} 直尺訂做傢俬額度` : "請先選擇套餐"}</strong></div>
                 <div><span>天花／衣櫃</span><strong>廚廁天花已包括・額外傢俬可選購</strong></div>
                 <div><span>電力及弱電</span><strong>只列參考價・不計總額</strong></div>
-                <button className="text-button" onClick={goToCatalog}>前往調校工程項目 →</button>
+                <button className="text-button" onClick={goToCatalog} disabled={!quoteReady}>前往調校工程項目 →</button>
               </section>
             </div>
           )}
@@ -415,7 +411,9 @@ export default function App() {
           <div className="summary-lines"><div><span>套餐基準價</span><strong>{formatCurrency(packageTotal)}</strong></div><div><span>已選自選／手動加項</span><strong>{formatCurrency(extrasTotal)}</strong></div><div className="subtotal"><span>目前報價總額</span><strong>{quoteReady ? formatCurrency(total) : "待完成"}</strong></div></div>
           <div className="summary-selected"><span>已計價項目</span>{chargeableLines.length ? chargeableLines.map((line) => <div key={line.item.id}><small>{line.item.name}</small><strong>{formatCurrency(line.amount)}</strong></div>) : <p>暫未有額外計價項目。</p>}</div>
           <div className={`summary-status ${quoteReady ? demolitionStatus.type : "waiting"}`}><strong>{quoteReady ? demolitionStatus.title : "報價資料未完成"}</strong><span>{quoteReady ? demolitionStatus.note : completionMessage}</span></div>
-          <div className="summary-footer">              <button className="button primary full" onClick={goToCatalog} disabled={!quoteReady}>下一步：工程明細 →</button><button className="button ghost full" onClick={goToCatalog}>調校工程項目</button>
+          <div className="summary-footer">
+              <button className="button primary full" onClick={goToCatalog} disabled={!quoteReady}>下一步：工程明細 →</button>
+            <button className="button ghost full" onClick={goToCatalog}>調校工程項目</button>
             <button className="button ghost full" onClick={printQuote} disabled={isExporting}>{isExporting ? "正在製作及保存 PDF…" : "匯出報價 PDF"}</button>
             <button className="text-button danger" onClick={resetDraft}>回復預設目錄</button>
           </div>
@@ -424,3 +422,4 @@ export default function App() {
     </div>
   );
 }
+
