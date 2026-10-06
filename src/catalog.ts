@@ -28,7 +28,7 @@ export const defaultCatalog: CatalogItem[] = [
   { id: "01.02", code: "01.02", categoryId: "protect", name: "清拆原有廚房工作枱", description: "廚房工程", unit: "項", defaultQty: 1, price: 0, pricingMode: "included" },
   { id: "01.03", code: "01.03", categoryId: "protect", name: "建築廢料裝袋、垂直運輸及合法棄置", description: "全屋工程", unit: "項", defaultQty: 1, price: 0, pricingMode: "included" },
   { id: "02.01", code: "02.01", categoryId: "masonry", name: "大廳、房間地台找平及新鋪地台磚", description: "瓷磚由客人提供。\n此項目只包括鋪設 800mm x 800mm 至 300mm x 300mm 尺寸範圍內之瓷磚。\n如使用其他物料或尺寸之瓷磚，將另行報價。", unit: "項", defaultQty: 1, price: 0, pricingMode: "included" },
-  { id: "02.02", code: "02.02", categoryId: "masonry", name: "新做廚房地台磚", description: "包括灰泥／底料沙磚", unit: "項", defaultQty: 1, price: 0, pricingMode: "included" },
+  
   { id: "02.03", code: "02.03", categoryId: "masonry", name: "牆腳安裝及泥水修補", description: "全屋工程", unit: "項", defaultQty: 1, price: 0, pricingMode: "included" },
   { id: "03.01", code: "03.01", categoryId: "plumbing", name: "新造浴室洗衣機來去水", description: "供應及安裝", unit: "項", defaultQty: 1, price: 0, pricingMode: "included" },
   { id: "03.02", code: "03.02", categoryId: "plumbing", name: "清拆及安裝普通座廁", description: "由客戶提供座廁及五金配件", unit: "個", defaultQty: 1, price: 0, pricingMode: "included" },
